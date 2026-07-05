@@ -1,0 +1,643 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GDS Solutions</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'main/favicon.svg' %}">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <style>
+    :root {
+      --bg-grad:   linear-gradient(135deg, #dde8ff 0%, #eef2ff 35%, #e8f4f0 70%, #fdf6e3 100%);
+      --surface:   rgba(255, 255, 255, 0.65);
+      --surface-solid: #ffffff;
+      --border:    rgba(200, 210, 240, 0.6);
+      --text:      #1a1d2e;
+      --text-sub:  #2d3055;
+      --text-muted:#6c7489;
+      --input-bg:  rgba(255, 255, 255, 0.75);
+      --hover:     rgba(90, 100, 220, 0.07);
+      --accent:    #5059d8;
+      --accent-h:  #3f47c4;
+      --positive:  #1a8a65;
+      --negative:  #cc3333;
+      --shadow:    0 4px 24px rgba(80, 89, 216, 0.10);
+      --shadow-sm: 0 2px 10px rgba(80, 89, 216, 0.07);
+      --blur:      blur(18px);
+    }
+    [data-theme="dark"] {
+      --bg-grad:   linear-gradient(135deg, #0a0c14 0%, #0f1117 50%, #0d1020 100%);
+      --surface:   rgba(26, 29, 46, 0.80);
+      --surface-solid: #1a1d2e;
+      --border:    rgba(60, 70, 120, 0.55);
+      --text:      #e0e0e0;
+      --text-sub:  #c9cde8;
+      --text-muted:#778;
+      --input-bg:  rgba(15, 17, 23, 0.85);
+      --hover:     rgba(124, 131, 253, 0.10);
+      --accent:    #7c83fd;
+      --accent-h:  #6870e8;
+      --positive:  #26a17b;
+      --negative:  #e05252;
+      --shadow:    0 4px 24px rgba(0, 0, 0, 0.35);
+      --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.25);
+      --blur:      blur(18px);
+    }
+    *, *::before, *::after { transition: background-color .25s, border-color .25s, color .2s, box-shadow .25s; }
+    html, body { min-height: 100%; }
+    body {
+      background: var(--bg-grad);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+    .glass {
+      background: var(--surface);
+      backdrop-filter: var(--blur);
+      -webkit-backdrop-filter: var(--blur);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-radius: 14px;
+    }
+    .navbar {
+      background: var(--surface) !important;
+      backdrop-filter: var(--blur) !important;
+      -webkit-backdrop-filter: var(--blur) !important;
+      border-bottom: 1px solid var(--border) !important;
+      box-shadow: var(--shadow-sm) !important;
+    }
+    .navbar-brand { color: var(--accent) !important; font-weight: 700; letter-spacing: .5px; }
+    .card {
+      background: var(--surface);
+      backdrop-filter: var(--blur);
+      -webkit-backdrop-filter: var(--blur);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+    }
+    .price-card { transition: transform .18s, box-shadow .18s; }
+    .price-card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(80,89,216,0.15); }
+    .price-card .ticker { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.2px; }
+    .price-card .name   { font-size: .88rem; font-weight: 600; color: var(--text-sub); }
+    .price-card .close  { font-size: 1.4rem; font-weight: 700; }
+    .price-card .change { font-size: .84rem; font-weight: 500; }
+    .positive { color: var(--positive); }
+    .negative { color: var(--negative); }
+    .neutral  { color: var(--text-muted); }
+    .ctrl-panel {
+      background: var(--surface);
+      backdrop-filter: var(--blur);
+      -webkit-backdrop-filter: var(--blur);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .form-control, .form-select {
+      background: var(--input-bg);
+      backdrop-filter: blur(8px);
+      color: var(--text);
+      border-color: var(--border);
+      border-radius: 8px;
+    }
+    .form-control:focus, .form-select:focus {
+      background: var(--input-bg); color: var(--text);
+      border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+    .input-group-text {
+      background: var(--input-bg);
+      backdrop-filter: blur(8px);
+      border-color: var(--border);
+      color: var(--accent);
+    }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; border-radius: 8px; }
+    .btn-primary:hover { background: var(--accent-h); border-color: var(--accent-h); }
+    .btn-outline-secondary {
+      border-color: var(--border); color: var(--text-muted);
+      background: var(--input-bg); border-radius: 8px;
+    }
+    .btn-outline-secondary:hover { background: var(--hover); color: var(--text); border-color: var(--accent); }
+    .btn-refresh {
+      background: var(--input-bg); border: 1px solid var(--border);
+      color: var(--accent); transition: all .2s; border-radius: 8px;
+      backdrop-filter: blur(8px);
+    }
+    .btn-refresh:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: var(--accent); color: var(--accent); }
+    .btn-refresh.refreshing svg { animation: spin .7s linear infinite; }
+    .btn-theme {
+      background: var(--input-bg); border: 1px solid var(--border);
+      color: var(--text-muted); padding: 4px 10px; border-radius: 8px;
+      transition: all .2s; cursor: pointer; backdrop-filter: blur(8px);
+    }
+    .btn-theme:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-theme .icon-sun  { display: none; }
+    .btn-theme .icon-moon { display: inline; }
+    [data-theme="light"] .btn-theme .icon-sun  { display: inline; }
+    [data-theme="light"] .btn-theme .icon-moon { display: none; }
+    #chart-commodities { height: 400px; }
+    #chart-stocks { height: 400px; }
+    #chart-indices { height: 260px; }
+    .js-plotly-plot .main-svg { overflow: visible !important; }
+    .table { color: var(--text-sub); }
+    .table thead th {
+      border-color: var(--border); color: var(--accent);
+      font-size: .78rem; text-transform: uppercase; letter-spacing: .7px;
+      background: transparent;
+    }
+    .table tbody tr { border-color: var(--border); }
+    .table tbody tr:hover td { background: var(--hover); }
+    .table-section-label { font-size: .78rem; letter-spacing: .9px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+    .spinner-border { width: 1.2rem; height: 1.2rem; }
+    #summary-cards .col { min-width: 160px; }
+    .auto-badge {
+      font-size: .7rem; padding: 2px 8px; border-radius: 20px;
+      background: color-mix(in srgb, var(--positive) 15%, transparent);
+      color: var(--positive); border: 1px solid color-mix(in srgb, var(--positive) 35%, transparent);
+    }
+    .flash { animation: flashIn .4s ease; }
+    @keyframes flashIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #start-date, #end-date { cursor: pointer; caret-color: transparent; }
+    .ticker-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+      gap: 5px;
+    }
+    .ticker-btn {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 9px;
+      cursor: pointer;
+      text-align: left;
+      transition: background .15s, border-color .15s, color .15s;
+      color: var(--text-muted);
+      line-height: 1;
+    }
+    .ticker-btn .sym {
+      display: block;
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .9px;
+      text-transform: uppercase;
+      color: var(--text-sub);
+      margin-bottom: 2px;
+    }
+    .ticker-btn .nm {
+      display: block;
+      font-size: .68rem;
+      line-height: 1.25;
+      color: var(--text-muted);
+    }
+    .ticker-btn.active {
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+      border-color: var(--accent);
+    }
+    .ticker-btn.active .sym { color: var(--accent); }
+    .ticker-btn.active .nm  { color: var(--text-sub); }
+    .ticker-btn:hover:not(.active) {
+      background: var(--hover);
+      border-color: var(--accent);
+    }
+    .flatpickr-calendar {
+      background: var(--surface-solid) !important;
+      border: 1px solid var(--border) !important;
+      box-shadow: 0 12px 40px rgba(80,89,216,0.15) !important;
+      border-radius: 14px !important;
+      color: var(--text) !important;
+    }
+    .flatpickr-months, .flatpickr-month { background: transparent !important; color: var(--text-sub) !important; fill: var(--text-sub) !important; }
+    .flatpickr-current-month input.cur-year,
+    .flatpickr-current-month .flatpickr-monthDropdown-months { color: var(--text-sub) !important; background: transparent !important; }
+    .flatpickr-weekday { color: var(--accent) !important; background: transparent !important; font-weight: 600; }
+    .flatpickr-day { color: var(--text) !important; border-color: transparent !important; border-radius: 8px !important; }
+    .flatpickr-day:hover { background: var(--hover) !important; border-color: transparent !important; }
+    .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange {
+      background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important;
+    }
+    .flatpickr-day.inRange {
+      background: color-mix(in srgb, var(--accent) 15%, transparent) !important;
+      border-color: transparent !important;
+      box-shadow: -5px 0 0 color-mix(in srgb, var(--accent) 15%, transparent),
+                   5px 0 0 color-mix(in srgb, var(--accent) 15%, transparent) !important;
+      color: var(--text) !important;
+    }
+    .flatpickr-day.today { border-color: #e8b84b !important; }
+    .flatpickr-day.today:hover { background: rgba(232,184,75,.15) !important; }
+    .flatpickr-day.flatpickr-disabled { color: var(--text-muted) !important; opacity: .35; }
+    .flatpickr-prev-month svg, .flatpickr-next-month svg { fill: var(--accent) !important; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg mb-4">
+  <div class="container-fluid px-4">
+    <span class="navbar-brand fs-5 d-flex align-items-center gap-2">
+      <img src="{% static 'main/favicon.svg' %}" width="30" height="30" alt="GDS logo">
+      GDS Solutions
+    </span>
+    <div class="ms-auto d-flex align-items-center gap-3">
+      <span class="text-muted small" id="last-updated"></span>
+      <div class="d-flex align-items-center gap-2">
+        <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+          <input class="form-check-input" type="checkbox" id="auto-refresh-toggle" style="cursor:pointer;">
+          <label class="form-check-label small text-muted" for="auto-refresh-toggle" style="cursor:pointer;">Auto</label>
+        </div>
+        <select id="interval-select" class="form-select form-select-sm" style="width:auto;font-size:.8rem;">
+          <option value="15">15s</option>
+          <option value="30">30s</option>
+          <option value="60" selected>60s</option>
+          <option value="300">5m</option>
+          <option value="600">10m</option>
+          <option value="1800">30m</option>
+        </select>
+        <span id="auto-badge" class="auto-badge d-none">Auto</span>
+      </div>
+      <button id="refresh-btn" class="btn btn-refresh btn-sm px-3" onclick="refreshAll()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="me-1">
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0 1 14.36-3.36L23 10M1 14l5.13 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>Refresh
+      </button>
+      <button class="btn-theme" id="theme-toggle" title="Toggle light/dark mode">
+        <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="container-fluid px-4">
+
+  <div class="row g-3 mb-4" id="summary-cards">
+    <div class="col-12 text-center text-muted py-3">
+      <span class="spinner-border me-2"></span> Loading prices&hellip;
+    </div>
+  </div>
+
+  <div class="ctrl-panel mb-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label small text-muted mb-1">Tickers</label>
+        <div class="ticker-grid" id="ticker-grid">
+          {% for symbol, name in tickers.items %}
+          <button class="ticker-btn active" data-ticker="{{ symbol }}" onclick="toggleTicker(this)">
+            <span class="sym">{{ symbol }}</span>
+            <span class="nm">{{ name }}</span>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="col-md-1" style="min-width:130px">
+        <label class="form-label small text-muted mb-1">Start Date</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
+            </svg>
+          </span>
+          <input type="text" id="start-date" class="form-control form-control-sm" placeholder="Start" readonly>
+        </div>
+      </div>
+      <div class="col-md-1" style="min-width:130px">
+        <label class="form-label small text-muted mb-1">End Date</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
+            </svg>
+          </span>
+          <input type="text" id="end-date" class="form-control form-control-sm" placeholder="End" readonly>
+        </div>
+      </div>
+      <div class="col-md-2 d-flex gap-2 align-items-end">
+        <button class="btn btn-primary btn-sm" onclick="renderChart()">
+          <span id="chart-spinner" class="spinner-border d-none me-1"></span>Update Chart
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="clearChart()" title="Reset to all tickers · 3 months">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="me-1">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>Clear / Reset
+        </button>
+      </div>
+      <div class="col-md-2 d-flex gap-1 flex-wrap">
+        <button class="btn btn-outline-secondary btn-sm" onclick="setRange(30)">1M</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setRange(90)">3M</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setRange(180)">6M</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setRange(365)">1Y</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setRange(1825)">5Y</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setRange(3650)">10Y</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4 p-3">
+    <h6 class="table-section-label mb-2">Commodity's</h6>
+    <div id="chart-commodities"></div>
+  </div>
+
+  <div class="card mb-4 p-3">
+    <h6 class="table-section-label mb-2">Stocks</h6>
+    <div id="chart-stocks"></div>
+  </div>
+
+  <div class="card mb-4 p-3">
+    <h6 class="table-section-label mb-2">Indices</h6>
+    <div id="chart-indices"></div>
+  </div>
+
+  <div class="card p-3 mb-5">
+    <h6 class="table-section-label mb-3">Recent Prices</h6>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Ticker</th><th>Name</th><th>Date</th>
+            <th class="text-end">Close</th><th class="text-end">Change</th><th class="text-end">Change %</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr><td colspan="6" class="text-center text-muted">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+{{ summary|json_script:"summary-data" }}
+{{ prices|json_script:"prices-data" }}
+
+<script>
+const SUMMARY = JSON.parse(document.getElementById('summary-data').textContent);
+const PRICES  = JSON.parse(document.getElementById('prices-data').textContent);
+const DATA_END = '{{ default_end }}';
+
+const INDICES = ['NDX','DJI','GSPC'];
+const STOCKS  = ['XEL','CVX','MP','B','RTX','NVDA','AAPL','NOC','BA','PSKY','MSFT'];
+const PALETTE = [
+  '#7c83fd','#26a17b','#e8b84b','#e05252','#56c8d8',
+  '#b48ef7','#f7a35c','#90ed7d','#f15c80','#8085e9',
+  '#f7cb5c','#2b908f','#91e8e1'
+];
+
+function isDark() { return document.documentElement.dataset.theme !== 'light'; }
+
+function plotlyLayout() {
+  return isDark()
+    ? { paper: '#1a1d2e', plot: '#0f1117', font: '#c9cde8', grid: 'rgba(60,70,120,0.4)' }
+    : { paper: '#ffffff', plot: 'rgba(255,255,255,0.15)', font: '#1a1d2e', grid: 'rgba(120,150,220,0.45)' };
+}
+
+function applyTheme(dark) {
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  const c = plotlyLayout();
+  ['chart-indices', 'chart-commodities', 'chart-stocks'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.data && el.data.length) {
+      Plotly.relayout(id, {
+        paper_bgcolor: c.paper,
+        plot_bgcolor:  c.plot,
+        'font.color':  c.font,
+        'xaxis.gridcolor': c.grid,
+        'yaxis.gridcolor': c.grid,
+        'legend.bordercolor': c.grid,
+      });
+    }
+  });
+}
+
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  applyTheme(!isDark());
+});
+
+
+function fmtNum(n, dec=2) {
+  return n == null ? '—' : Number(n).toLocaleString('en-US', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+}
+function today()    { return DATA_END; }
+function daysAgo(n) { const d = new Date(DATA_END); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
+
+function toggleTicker(btn) {
+  btn.classList.toggle('active');
+}
+function clearChart() {
+  selectAll();
+  setRange(90);
+}
+function selectedTickers() {
+  return [...document.querySelectorAll('.ticker-btn.active')].map(b => b.dataset.ticker);
+}
+function selectAll()    { document.querySelectorAll('.ticker-btn').forEach(b => b.classList.add('active')); }
+
+const FP_OPTS = {
+  dateFormat: 'Y-m-d',
+  disableMobile: true,
+};
+
+const startPicker = flatpickr('#start-date', {
+  ...FP_OPTS,
+  defaultDate: '{{ default_start }}',
+  maxDate: '{{ default_end }}',
+  onChange([date]) {
+    if (date) endPicker.set('minDate', date);
+    if (date && endPicker.selectedDates[0]) renderChart();
+  },
+});
+
+const endPicker = flatpickr('#end-date', {
+  ...FP_OPTS,
+  defaultDate: '{{ default_end }}',
+  minDate: '{{ default_start }}',
+  maxDate: today(),
+  onChange([date]) {
+    if (date) startPicker.set('maxDate', date);
+    if (date && startPicker.selectedDates[0]) renderChart();
+  },
+});
+
+function getPickerDates() {
+  const s = startPicker.selectedDates[0];
+  const e = endPicker.selectedDates[0];
+  return {
+    start: s ? startPicker.formatDate(s, 'Y-m-d') : daysAgo(365),
+    end:   e ? endPicker.formatDate(e,   'Y-m-d') : today(),
+  };
+}
+
+function setRange(days) {
+  const s = daysAgo(days), e = today();
+  startPicker.setDate(s);
+  endPicker.setDate(e);
+  startPicker.set('maxDate', e);
+  endPicker.set('minDate', s);
+  renderChart();
+}
+
+function renderSummary() {
+  const cards = document.getElementById('summary-cards');
+  cards.innerHTML = '';
+  SUMMARY.forEach(row => {
+    const sign  = row.change > 0 ? '+' : '';
+    const cls   = row.change > 0 ? 'positive' : row.change < 0 ? 'negative' : 'neutral';
+    const arrow = row.change > 0 ? '▲' : row.change < 0 ? '▼' : '—';
+    cards.innerHTML += `
+      <div class="col flash">
+        <div class="card price-card p-3 h-100">
+          <div class="ticker">${row.ticker}</div>
+          <div class="name">${row.name}</div>
+          <div class="close mt-1">${fmtNum(row.close)}</div>
+          <div class="change ${cls}">${arrow} ${sign}${fmtNum(row.change)} (${sign}${fmtNum(row.change_pct)}%)</div>
+          <div class="ticker mt-1">${row.date}</div>
+        </div>
+      </div>`;
+  });
+  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+let autoTimer = null;
+
+function refreshAll() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('refreshing'); btn.disabled = true;
+  try { renderSummary(); renderChart(); }
+  finally { btn.classList.remove('refreshing'); btn.disabled = false; }
+}
+
+function intervalLabel(s) { return s >= 60 ? (s/60)+'m' : s+'s'; }
+
+function startAutoRefresh() {
+  clearInterval(autoTimer);
+  const sec = parseInt(document.getElementById('interval-select').value, 10);
+  document.getElementById('auto-badge').textContent = 'Auto ' + intervalLabel(sec);
+  autoTimer = setInterval(refreshAll, sec * 1000);
+}
+
+document.getElementById('auto-refresh-toggle').addEventListener('change', function () {
+  const badge = document.getElementById('auto-badge');
+  if (this.checked) { badge.classList.remove('d-none'); startAutoRefresh(); }
+  else              { badge.classList.add('d-none'); clearInterval(autoTimer); autoTimer = null; }
+});
+document.getElementById('interval-select').addEventListener('change', () => {
+  if (document.getElementById('auto-refresh-toggle').checked) startAutoRefresh();
+});
+
+function filterSeries(sym, start, end) {
+  const info = PRICES[sym];
+  if (!info) return null;
+  const dates = [], opens = [], highs = [], lows = [], closes = [];
+  for (let i = 0; i < info.dates.length; i++) {
+    const d = info.dates[i];
+    if (d >= start && d <= end) {
+      dates.push(d); opens.push(info.opens[i]); highs.push(info.highs[i]);
+      lows.push(info.lows[i]); closes.push(info.closes[i]);
+    }
+  }
+  return { name: info.name, dates, opens, highs, lows, closes };
+}
+
+function renderChartInto(divId, tickers, start, end) {
+  const data = {};
+  tickers.forEach(sym => {
+    const filtered = filterSeries(sym, start, end);
+    if (filtered && filtered.dates.length) data[sym] = filtered;
+  });
+
+  const traces = Object.entries(data).map(([sym, info], i) => {
+    const col = PALETTE[i % PALETTE.length];
+    return {
+      x:     info.dates,
+      open:  info.opens,
+      high:  info.highs,
+      low:   info.lows,
+      close: info.closes,
+      name:  info.name,
+      type:  'candlestick',
+      increasing: { line: { color: col }, fillcolor: col },
+      decreasing: { line: { color: col }, fillcolor: 'rgba(0,0,0,0)' },
+      hovertemplate: 'Open: %{open:.2f}<br>High: %{high:.2f}<br>Low: %{low:.2f}<br>Close: %{close:.2f}<extra>%{fullData.name}</extra>',
+    };
+  });
+
+  const c = plotlyLayout();
+  const layout = {
+    paper_bgcolor: c.paper, plot_bgcolor: c.plot,
+    font:   { color: c.font, size: 12 },
+    xaxis:  { gridcolor: c.grid, showgrid: true, gridwidth: 1, griddash: 'solid', zeroline: false, linecolor: c.grid, showline: true, mirror: true, rangeslider: { visible: false }, hoverformat: '%A, %d %B %Y' },
+    yaxis:  { gridcolor: c.grid, showgrid: true, gridwidth: 1, griddash: 'solid', zeroline: false, linecolor: c.grid, showline: true, mirror: true, tickprefix: '$' },
+    legend: {
+      bgcolor: '#ffffff',
+      bordercolor: 'rgba(120,150,220,0.5)',
+      borderwidth: 1,
+      font: { size: 11, color: '#1a1d2e' },
+      orientation: 'v',
+      x: 1.01, xanchor: 'left',
+      y: 1,    yanchor: 'top',
+      tracegroupgap: 4,
+    },
+    margin: { t: 20, r: 160, b: 50, l: 70 },
+    hovermode: 'x unified',
+    hoverlabel: { namelength: -1 },
+  };
+  Plotly.react(divId, traces, layout, { responsive: true, displayModeBar: false });
+  return data;
+}
+
+function renderChart() {
+  const tickers = selectedTickers();
+  const { start, end } = getPickerDates();
+  const spinner = document.getElementById('chart-spinner');
+  spinner.classList.remove('d-none');
+
+  const commodityTickers = tickers.filter(sym => !INDICES.includes(sym) && !STOCKS.includes(sym));
+  const stockTickers     = tickers.filter(sym => STOCKS.includes(sym));
+  const data = renderChartInto('chart-commodities', commodityTickers, start, end);
+  const stockData = renderChartInto('chart-stocks', stockTickers, start, end);
+  const indicesData = renderChartInto('chart-indices', INDICES, start, end);
+  Object.assign(data, stockData, indicesData);
+
+  spinner.classList.add('d-none');
+
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = '';
+  Object.entries(data).forEach(([sym, info]) => {
+    const last = info.dates.length - 1;
+    if (last < 0) return;
+    const close = info.closes[last];
+    const prev  = last > 0 ? info.closes[last-1] : close;
+    const change = +(close - prev).toFixed(2);
+    const changePct = prev ? +((change/prev)*100).toFixed(2) : 0;
+    const sign = change >= 0 ? '+' : '';
+    const cls  = change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral';
+    tbody.innerHTML += `
+      <tr>
+        <td><code class="text-info">${sym}</code></td>
+        <td>${info.name}</td>
+        <td class="text-muted">${info.dates[last]}</td>
+        <td class="text-end">${fmtNum(close)}</td>
+        <td class="text-end ${cls}">${sign}${fmtNum(change)}</td>
+        <td class="text-end ${cls}">${sign}${fmtNum(changePct)}%</td>
+      </tr>`;
+  });
+  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+renderSummary();
+renderChart();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
