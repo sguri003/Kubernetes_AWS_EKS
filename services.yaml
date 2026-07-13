@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gds_service
+  labels:
+    app: gds_app
+spec:
+  type: LoadBalancer
+  selector:
+    app: gds_app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
