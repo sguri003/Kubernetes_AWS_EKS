@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: gds_deployment
+  name: gds-deployment
   labels:
-    app: gds_app
+    app: gds-app
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
-      app: gds_app
+      app: gds-app
   template:
     metadata:
       labels:
-        app: gds_app
+        app: gds-app
     spec:
       containers:
-        - name: gds:v5
-          image: sguri003/gds:v5
-          ports:
-            - containerPort: 8080
+      - name: gds-container
+        image: sguri003/gds-app:v1
+        ports:
+        - containerPort: 8000

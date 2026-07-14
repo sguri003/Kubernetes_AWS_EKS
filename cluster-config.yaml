@@ -1,0 +1,11 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: gds-yaml-cluster
+  region: us-east-1
+
+managedNodeGroups:
+  - name: gds-workers
+    instanceType: t2.medium
+    desiredCapacity: 2

@@ -1,14 +1,20 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: gds_service
-  labels:
-    app: gds_app
+  name: gds-service
+  annotations:
+    # Provisions an AWS Network Load Balancer (NLB) instead of a legacy Classic Load Balancer
+    service.beta.kubernetes.io/aws-load-balancer-type: "external"
+    # Determines how traffic paths to pods. "nlb-ip" routes traffic directly to the pod IP addresses
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "instance"
+    # Forces the load balancer to be internet-facing instead of internal
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
 spec:
   type: LoadBalancer
   selector:
-    app: gds_app
+    app: gds-app
   ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 8080
+    - name: http
+      protocol: TCP
+      port: 80          # The external port exposed by the load balancer
+      targetPort: 8000    # The containerPort specified in your deployment
