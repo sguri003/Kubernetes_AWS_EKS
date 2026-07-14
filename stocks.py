@@ -22,9 +22,6 @@ TICKER_LABELS = {
     "HG_F": "Copper",
     "CL_F": "WTI Crude Oil",
     "BZ_F": "Brent Crude",
-    "NDX": "NASDAQ 100",
-    "DJI": "Dow Jones",
-    "GSPC": "S&P 500",
     "XEL": "Xcel Energy",
     "CVX": "Chevron",
     "MP": "MP Materials",
@@ -44,7 +41,6 @@ TICKERS = list(TICKER_LABELS.keys())
 COL_TO_TICKER = {
     "GC_F": "GC=F", "SI_F": "SI=F", "PL_F": "PL=F", "PA_F": "PA=F",
     "HG_F": "HG=F", "CL_F": "CL=F", "BZ_F": "BZ=F",
-    "NDX": "^NDX", "DJI": "^DJI", "GSPC": "^GSPC",
     "XEL": "XEL", "CVX": "CVX", "MP": "MP", "B": "B",
     "RTX": "RTX", "NVDA": "NVDA", "AAPL": "AAPL", "NOC": "NOC",
     "BA": "BA", "PSKY": "PSKY", "MSFT": "MSFT",

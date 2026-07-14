@@ -140,7 +140,6 @@
     [data-theme="light"] .btn-theme .icon-moon { display: none; }
     #chart-commodities { height: 400px; }
     #chart-stocks { height: 400px; }
-    #chart-indices { height: 260px; }
     .js-plotly-plot .main-svg { overflow: visible !important; }
     .table { color: var(--text-sub); }
     .table thead th {
@@ -353,11 +352,6 @@
     <div id="chart-stocks"></div>
   </div>
 
-  <div class="card mb-4 p-3">
-    <h6 class="table-section-label mb-2">Indices</h6>
-    <div id="chart-indices"></div>
-  </div>
-
   <div class="card p-3 mb-5">
     <h6 class="table-section-label mb-3">Recent Prices</h6>
     <div class="table-responsive">
@@ -377,15 +371,11 @@
 
 </div>
 
-{{ summary|json_script:"summary-data" }}
-{{ prices|json_script:"prices-data" }}
-
 <script>
-const SUMMARY = JSON.parse(document.getElementById('summary-data').textContent);
-const PRICES  = JSON.parse(document.getElementById('prices-data').textContent);
+let SUMMARY = [];
+let PRICES = {};
 const DATA_END = '{{ default_end }}';
 
-const INDICES = ['NDX','DJI','GSPC'];
 const STOCKS  = ['XEL','CVX','MP','B','RTX','NVDA','AAPL','NOC','BA','PSKY','MSFT'];
 const PALETTE = [
   '#7c83fd','#26a17b','#e8b84b','#e05252','#56c8d8',
@@ -404,7 +394,7 @@ function plotlyLayout() {
 function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   const c = plotlyLayout();
-  ['chart-indices', 'chart-commodities', 'chart-stocks'].forEach(id => {
+  ['chart-commodities', 'chart-stocks'].forEach(id => {
     const el = document.getElementById(id);
     if (el && el.data && el.data.length) {
       Plotly.relayout(id, {
@@ -601,12 +591,11 @@ function renderChart() {
   const spinner = document.getElementById('chart-spinner');
   spinner.classList.remove('d-none');
 
-  const commodityTickers = tickers.filter(sym => !INDICES.includes(sym) && !STOCKS.includes(sym));
+  const commodityTickers = tickers.filter(sym => !STOCKS.includes(sym));
   const stockTickers     = tickers.filter(sym => STOCKS.includes(sym));
   const data = renderChartInto('chart-commodities', commodityTickers, start, end);
   const stockData = renderChartInto('chart-stocks', stockTickers, start, end);
-  const indicesData = renderChartInto('chart-indices', INDICES, start, end);
-  Object.assign(data, stockData, indicesData);
+  Object.assign(data, stockData);
 
   spinner.classList.add('d-none');
 
@@ -634,8 +623,15 @@ function renderChart() {
   document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
 }
 
-renderSummary();
-renderChart();
+Promise.all([
+  fetch('/api/summary/').then(r => r.json()),
+  fetch('/api/prices/').then(r => r.json()),
+]).then(([summary, prices]) => {
+  SUMMARY = summary;
+  PRICES = prices;
+  renderSummary();
+  renderChart();
+});
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
