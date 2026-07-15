@@ -2,7 +2,6 @@ venv/
 __pycache__/
 *.pyc
 .git/
-db.sqlite3
 staticfiles/
 *.sha256
 curl_response

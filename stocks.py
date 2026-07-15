@@ -33,6 +33,7 @@ TICKER_LABELS = {
     "BA": "Boeing",
     "PSKY": "Paramount Skydance",
     "MSFT": "Microsoft",
+    "BAC": "Bank of America",
 }
 
 TICKERS = list(TICKER_LABELS.keys())
@@ -43,7 +44,7 @@ COL_TO_TICKER = {
     "HG_F": "HG=F", "CL_F": "CL=F", "BZ_F": "BZ=F",
     "XEL": "XEL", "CVX": "CVX", "MP": "MP", "B": "B",
     "RTX": "RTX", "NVDA": "NVDA", "AAPL": "AAPL", "NOC": "NOC",
-    "BA": "BA", "PSKY": "PSKY", "MSFT": "MSFT",
+    "BA": "BA", "PSKY": "PSKY", "MSFT": "MSFT", "BAC": "BAC",
 }
 TICKER_TO_COL = {v: k for k, v in COL_TO_TICKER.items()}
 YF_TICKERS = list(COL_TO_TICKER.values())
@@ -91,10 +92,9 @@ def _yf_download_single(ticker: str, start: str, end: str) -> pd.DataFrame:
     return df.dropna(subset=["Close"])
 
 
-def _yf_download_wide(start: str, end: str) -> pd.DataFrame:
-    """Download all tickers in one call; return a wide DataFrame keyed by our safe column names."""
-    raw = yf.download(YF_TICKERS, start=start, end=end,
-                       group_by="ticker", auto_adjust=True, progress=False)
+def _normalize_wide_columns(raw: pd.DataFrame) -> pd.DataFrame:
+    """Shared post-processing for a yf.download(group_by='ticker') result: flatten the
+    MultiIndex into our safe column names and rename the date/datetime column to 'Dt'."""
     if raw.empty:
         return pd.DataFrame()
     dt = raw.reset_index()
@@ -107,15 +107,38 @@ def _yf_download_wide(start: str, end: str) -> pd.DataFrame:
                   .str.lstrip("_"))
     dt = dt[[c for c in dt.columns if "Adj" not in c]]
     dt = dt.rename(columns={c: "Dt" for c in dt.columns if "Date" in c or c == "Date_"})
+    return dt
+
+
+def _yf_download_wide(start: str, end: str) -> pd.DataFrame:
+    """Download all tickers in one call; return a wide DataFrame keyed by our safe column names."""
+    raw = yf.download(YF_TICKERS, start=start, end=end,
+                       group_by="ticker", auto_adjust=True, progress=False)
+    dt = _normalize_wide_columns(raw)
+    if dt.empty:
+        return dt
     dt["Dt"] = pd.to_datetime(dt["Dt"]).dt.date.astype(str)
     return dt.round(4)
 
 
+def _yf_download_intraday_wide() -> pd.DataFrame:
+    """Download today's intraday (1-minute) bars for all tickers in one call. Dt stays a
+    full timestamp string (not collapsed to a date) since callers only need the latest row."""
+    raw = yf.download(YF_TICKERS, period="1d", interval="1m",
+                       group_by="ticker", auto_adjust=True, progress=False)
+    return _normalize_wide_columns(raw)
+
+
 def _extract_ticker_from_wide(ticker: str, wide: pd.DataFrame) -> pd.DataFrame:
-    """Parse one ticker's OHLCV from an already-downloaded wide DataFrame (no extra download)."""
-    prefix = TICKER_TO_COL.get(ticker)
-    if not prefix:
+    """Parse one ticker's OHLCV from an already-downloaded wide DataFrame (no extra download).
+
+    `ticker` is our safe column-name (e.g. "GC_F"), which is already the column prefix used
+    in wide DataFrames — no translation through TICKER_TO_COL (yfinance-symbol -> safe-name)
+    needed or correct here.
+    """
+    if ticker not in COL_TO_TICKER:
         return pd.DataFrame()
+    prefix = ticker
     col_map = {
         f"{prefix}_Open": "Open", f"{prefix}_High": "High",
         f"{prefix}_Low":  "Low",  f"{prefix}_Close": "Close",
@@ -170,11 +193,30 @@ def _save_wide_to_sql(df: pd.DataFrame):
         conn.close()
 
 
+def _max_date_in_sql() -> str | None:
+    """Latest Dt stored in the Commodity table, or None if the table is missing/empty."""
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            'SELECT name FROM sqlite_master WHERE type="table" AND name=?', (TABLE,)
+        )
+        if not cur.fetchone():
+            return None
+        row = conn.execute(f'SELECT MAX(Dt) FROM "{TABLE}"').fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
+
+
 # ── sqlite3 read ───────────────────────────────────────────────────────────────
 
 def _read_tickers_from_sql(tickers: list, start: str, end: str) -> dict:
-    """Fetch all requested tickers in a single query (SELECT *)."""
-    prefixes = {t: TICKER_TO_COL[t] for t in tickers if t in TICKER_TO_COL}
+    """Fetch all requested tickers in a single query (SELECT *).
+
+    `tickers` are our safe column-names (e.g. "GC_F"), already the column prefix used in the
+    table — no translation through TICKER_TO_COL (yfinance-symbol -> safe-name) needed here.
+    """
+    prefixes = {t: t for t in tickers if t in COL_TO_TICKER}
     if not prefixes:
         return {}
 
@@ -244,13 +286,35 @@ def fetch_prices(tickers: list, start: str, end: str) -> dict:
     return result
 
 
-def refresh_all_to_sql(start: str = HISTORY_START):
-    """Download all tickers from yfinance and write new rows to the Commodity table."""
+REFRESH_LOOKBACK_DAYS = 5  # re-request a trailing window on every refresh, not just "since last date"
+
+
+def refresh_all_to_sql(start: str = None):
+    """Upsert new/recent rows into the Commodity table from yfinance.
+
+    Incremental by default: requests a short trailing window (latest stored
+    date minus REFRESH_LOOKBACK_DAYS, through today) instead of redownloading
+    the full history every time. The lookback buffer matters because the
+    stored "latest date" is table-wide, not per-ticker: futures post before
+    equities close, so a same-day refresh can write a row with futures filled
+    but equities still NULL. Without a buffer, the next run would start the
+    day after and never revisit that date. Falls back to HISTORY_START when
+    the table doesn't exist yet (first run / empty db).
+    """
     end = date.today().strftime("%Y-%m-%d")
+
+    if start is None:
+        last = _max_date_in_sql()
+        if last is None:
+            start = HISTORY_START
+        else:
+            lookback = (date.fromisoformat(last) - timedelta(days=REFRESH_LOOKBACK_DAYS)).isoformat()
+            start = max(lookback, HISTORY_START)
+
     wide = _yf_download_wide(start, end)
     if not wide.empty:
         _save_wide_to_sql(wide)
-        logger.info("Refreshed %s with latest yfinance data", TABLE)
+        logger.info("Refreshed %s with latest yfinance data (%s to %s)", TABLE, start, end)
 
 
 REFRESH_MARKER  = BASE_DIR / ".last_refresh"
@@ -281,8 +345,19 @@ def refresh_if_stale():
     _mark_refreshed(today)
 
 
+_series_cache = None
+_series_cache_date = None
+
+
 def get_full_price_series() -> dict:
-    end = date.today().strftime("%Y-%m-%d")
+    """Full 2010-to-date series for all tickers. Cached per calendar day since
+    the underlying data only changes once/day via the GDS_UpdateStocks task."""
+    global _series_cache, _series_cache_date
+    today = date.today()
+    if _series_cache is not None and _series_cache_date == today:
+        return _series_cache
+
+    end = today.strftime("%Y-%m-%d")
     data = fetch_prices(TICKERS, HISTORY_START, end)
     series = {}
     for ticker in TICKERS:
@@ -301,6 +376,8 @@ def get_full_price_series() -> dict:
             "lows":   [_safe_float(v) for v in df["Low"].tolist()],
             "closes": [_safe_float(v) for v in df["Close"].tolist()],
         }
+    _series_cache = series
+    _series_cache_date = today
     return series
 
 
@@ -334,6 +411,65 @@ def get_summary() -> list:
             "change":     change,
             "change_pct": change_pct,
             "date":       str(df.index[-1]),
+        })
+    rows.sort(key=lambda r: r["name"])
+    return rows
+
+
+_live_quotes_cache = None
+_live_quotes_cache_time = None
+LIVE_QUOTE_CACHE_TTL = 15  # seconds — protects yfinance from overlapping poll cycles
+
+
+def get_live_quotes() -> list:
+    """Intraday current price per ticker vs. the last stored close. Cached briefly
+    (not day-scoped like get_full_price_series) since the point is freshness."""
+    global _live_quotes_cache, _live_quotes_cache_time
+    now = time.monotonic()
+    if _live_quotes_cache is not None and _live_quotes_cache_time is not None \
+            and (now - _live_quotes_cache_time) < LIVE_QUOTE_CACHE_TTL:
+        return _live_quotes_cache
+
+    try:
+        rows = _compute_live_quotes()
+    except Exception:
+        logger.warning("Live quote fetch failed", exc_info=True)
+        rows = []
+
+    _live_quotes_cache = rows
+    _live_quotes_cache_time = now
+    return rows
+
+
+def _compute_live_quotes() -> list:
+    intraday = _yf_download_intraday_wide()
+    if intraday.empty:
+        return []
+
+    today_str = date.today().strftime("%Y-%m-%d")
+    prev_start = (date.today() - timedelta(days=SUMMARY_LOOKBACK)).strftime("%Y-%m-%d")
+    prev_data = fetch_prices(TICKERS, prev_start, today_str)
+
+    rows = []
+    for ticker in TICKERS:
+        prev_df = prev_data.get(ticker)
+        if prev_df is None or prev_df.empty:
+            continue
+        live_df = _extract_ticker_from_wide(ticker, intraday)
+        if live_df.empty:
+            continue
+
+        prev_close = float(prev_df["Close"].iloc[-1])
+        close = float(live_df["Close"].iloc[-1])
+        change = round(close - prev_close, 2)
+        change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
+        rows.append({
+            "ticker":     ticker,
+            "name":       TICKER_LABELS.get(ticker, ticker),
+            "close":      close,
+            "change":     change,
+            "change_pct": change_pct,
+            "date":       today_str,
         })
     rows.sort(key=lambda r: r["name"])
     return rows

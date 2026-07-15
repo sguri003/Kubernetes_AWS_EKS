@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
       - name: gds-container
-        image: sguri003/gds-app:v3
+        image: sguri003/gds-app:v12
         ports:
         - containerPort: 8000

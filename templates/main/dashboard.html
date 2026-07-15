@@ -238,6 +238,7 @@
     <span class="navbar-brand fs-5 d-flex align-items-center gap-2">
       <img src="{% static 'main/favicon.svg' %}" width="30" height="30" alt="GDS logo">
       GDS Solutions
+      <span class="text-muted small fw-normal" title="Current Release">Current Release: {{ app_version }}</span>
     </span>
     <div class="ms-auto d-flex align-items-center gap-3">
       <span class="text-muted small" id="last-updated"></span>
@@ -376,7 +377,7 @@ let SUMMARY = [];
 let PRICES = {};
 const DATA_END = '{{ default_end }}';
 
-const STOCKS  = ['XEL','CVX','MP','B','RTX','NVDA','AAPL','NOC','BA','PSKY','MSFT'];
+const STOCKS  = ['XEL','CVX','MP','B','RTX','NVDA','AAPL','NOC','BA','PSKY','MSFT','BAC'];
 const PALETTE = [
   '#7c83fd','#26a17b','#e8b84b','#e05252','#56c8d8',
   '#b48ef7','#f7a35c','#90ed7d','#f15c80','#8085e9',
@@ -502,8 +503,18 @@ let autoTimer = null;
 function refreshAll() {
   const btn = document.getElementById('refresh-btn');
   btn.classList.add('refreshing'); btn.disabled = true;
-  try { renderSummary(); renderChart(); }
-  finally { btn.classList.remove('refreshing'); btn.disabled = false; }
+  fetch('/api/live/')
+    .then(r => r.json())
+    .then(live => {
+      const byTicker = Object.fromEntries(live.map(row => [row.ticker, row]));
+      SUMMARY = SUMMARY.map(row => byTicker[row.ticker] ? { ...row, ...byTicker[row.ticker] } : row);
+    })
+    .catch(() => {})  // live-quote hiccup: keep showing last known values
+    .finally(() => {
+      renderSummary();
+      renderChart();
+      btn.classList.remove('refreshing'); btn.disabled = false;
+    });
 }
 
 function intervalLabel(s) { return s >= 60 ? (s/60)+'m' : s+'s'; }
