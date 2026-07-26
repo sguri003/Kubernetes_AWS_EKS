@@ -17,4 +17,4 @@ spec:
     - name: http
       protocol: TCP
       port: 80          # The external port exposed by the load balancer
-      targetPort: 8000    # The containerPort specified in your deployment
+      targetPort: 8000    # The containerPort specified in your deployment 

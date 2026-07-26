@@ -1,3 +1,16 @@
+"""Price data layer for the GDS dashboard.
+
+Flow: yfinance is the source of truth; `db.sqlite3` (table `Commodity`, one row
+per date, wide columns per ticker) is a local cache of it, refreshed daily by
+`refresh_if_stale()`/`refresh_all_to_sql()`. `fetch_prices()` reads sqlite first
+and only calls yfinance for tickers/dates missing from the cache. `views.py`
+calls the three read-only entry points below to serve `/api/*`:
+
+- `get_full_price_series()` — full history for the charts, cached per calendar day.
+- `get_summary()`           — latest close + day-over-day change for the top cards.
+- `get_live_quotes()`       — intraday price vs. last stored close, cached ~15s.
+"""
+
 import logging
 import sqlite3
 import time
@@ -58,6 +71,7 @@ _sql_up = False
 
 
 def _connect() -> sqlite3.Connection:
+    """Open a new connection to db.sqlite3. Caller is responsible for closing it."""
     return sqlite3.connect(DB_PATH)
 
 
@@ -82,6 +96,8 @@ def _sql_available() -> bool:
 # ── yfinance ──────────────────────────────────────────────────────────────────
 
 def _yf_download_single(ticker: str, start: str, end: str) -> pd.DataFrame:
+    """Fallback single-ticker download, used when a ticker is missing from a wide-download
+    result (e.g. it wasn't in the batch or yfinance dropped it silently)."""
     raw = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=True)
     if raw.empty:
         return pd.DataFrame()
@@ -323,6 +339,8 @@ REFRESH_HOUR_ET = 17  # 5:00 PM ET — after US equity close and most futures se
 
 
 def _last_refresh_date():
+    """Date of the last successful refresh_if_stale() run, or None if it's never run
+    (fresh pod, marker file missing/corrupt)."""
     try:
         return date.fromisoformat(REFRESH_MARKER.read_text().strip())
     except (FileNotFoundError, ValueError):
@@ -330,6 +348,7 @@ def _last_refresh_date():
 
 
 def _mark_refreshed(d: date):
+    """Persist today's date to REFRESH_MARKER so refresh_if_stale() doesn't re-run today."""
     REFRESH_MARKER.write_text(d.isoformat())
 
 
@@ -382,6 +401,7 @@ def get_full_price_series() -> dict:
 
 
 def _safe_float(value):
+    """Cast to float, collapsing NaN and non-numeric values to None (JSON has no NaN)."""
     try:
         f = float(value)
         return f if f == f else None  # filter NaN
@@ -390,6 +410,12 @@ def _safe_float(value):
 
 
 def get_summary() -> list:
+    """Latest close + day-over-day change for every ticker, sorted by name.
+
+    Backs the summary cards up top and the initial /api/summary/ load. Looks back
+    SUMMARY_LOOKBACK days (not just 2) so a ticker with a stale/missing most-recent
+    row (holiday, thin trading) still has a real previous close to diff against.
+    """
     end = date.today().strftime("%Y-%m-%d")
     start = (date.today() - timedelta(days=SUMMARY_LOOKBACK)).strftime("%Y-%m-%d")
     data = fetch_prices(TICKERS, start, end)
@@ -442,6 +468,9 @@ def get_live_quotes() -> list:
 
 
 def _compute_live_quotes() -> list:
+    """Uncached body of get_live_quotes(): pairs today's 1-minute intraday bar per ticker
+    with its last stored daily close, to compute an intraday change. Callers should use
+    get_live_quotes() instead — it adds the short TTL cache."""
     intraday = _yf_download_intraday_wide()
     if intraday.empty:
         return []
@@ -476,6 +505,9 @@ def _compute_live_quotes() -> list:
 
 
 def get_default_range():
+    """Default chart window: the trailing 365 days ending on the latest date actually
+    present in the price series (not today — avoids a range with no data on weekends/holidays
+    or before the day's refresh has run)."""
     series = get_full_price_series()
     all_dates = sorted({d for info in series.values() for d in info["dates"]})
     if not all_dates:

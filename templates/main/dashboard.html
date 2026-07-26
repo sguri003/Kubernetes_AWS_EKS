@@ -141,14 +141,41 @@
     #chart-commodities { height: 400px; }
     #chart-stocks { height: 400px; }
     .js-plotly-plot .main-svg { overflow: visible !important; }
-    .table { color: var(--text-sub); }
+    .table { color: var(--text-sub); border-collapse: separate; border-spacing: 0; }
     .table thead th {
       border-color: var(--border); color: var(--accent);
-      font-size: .78rem; text-transform: uppercase; letter-spacing: .7px;
-      background: transparent;
+      font-size: 1.1rem; text-transform: uppercase; letter-spacing: .7px;
+      background: transparent; padding: .9rem 1rem; border-bottom-width: 2px;
     }
-    .table tbody tr { border-color: var(--border); }
+    .table tbody td { padding: .9rem 1rem; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+    .table tbody td.text-end { font-size: 1.25rem; font-weight: 600; }
+    .table tbody tr { border-color: var(--border); transition: background-color .15s, transform .15s; }
     .table tbody tr:hover td { background: var(--hover); }
+    .table tbody tr:hover { transform: translateX(2px); }
+    .table .ticker-cell {
+      color: #000;
+      font-weight: 700;
+    }
+    #prices-table-wrap { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+    #prices-table-wrap .table { margin-bottom: 0; }
+    #prices-table-wrap .table tbody tr:last-child td { border-bottom: none; }
+    .change-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      min-width: 90px;
+      padding: 5px 13px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 1.25rem;
+    }
+    .change-pill svg { flex: none; }
+    .change-pill.positive { background: color-mix(in srgb, var(--positive) 15%, transparent); color: var(--positive); }
+    .change-pill.negative { background: color-mix(in srgb, var(--negative) 15%, transparent); color: var(--negative); }
+    .change-pill.neutral  { background: color-mix(in srgb, var(--text-muted) 15%, transparent); color: var(--text-muted); }
+    @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    #table-body tr.row-in { animation: rowIn .35s ease both; }
     .table-section-label { font-size: .78rem; letter-spacing: .9px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
     .spinner-border { width: 1.2rem; height: 1.2rem; }
     #summary-cards .col { min-width: 160px; }
@@ -355,16 +382,16 @@
 
   <div class="card p-3 mb-5">
     <h6 class="table-section-label mb-3">Recent Prices</h6>
-    <div class="table-responsive">
+    <div class="table-responsive" id="prices-table-wrap">
       <table class="table table-sm table-hover align-middle mb-0">
         <thead>
           <tr>
             <th>Ticker</th><th>Name</th><th>Date</th>
-            <th class="text-end">Close</th><th class="text-end">Change</th><th class="text-end">Change %</th>
+            <th class="text-end">Close</th><th class="text-end">Change</th><th class="text-end">Change %</th><th class="text-end">MoM %</th>
           </tr>
         </thead>
         <tbody id="table-body">
-          <tr><td colspan="6" class="text-center text-muted">Loading&hellip;</td></tr>
+          <tr><td colspan="7" class="text-center text-muted">Loading&hellip;</td></tr>
         </tbody>
       </table>
     </div>
@@ -415,6 +442,24 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 });
 
 
+function trendIcon(cls) {
+  if (cls === 'positive') {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+  }
+  if (cls === 'negative') {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>';
+  }
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+}
+function monthAgoIndex(dates, endIdx) {
+  const target = new Date(dates[endIdx]);
+  target.setDate(target.getDate() - 30);
+  const targetStr = target.toISOString().slice(0, 10);
+  for (let i = endIdx; i >= 0; i--) {
+    if (dates[i] <= targetStr) return i;
+  }
+  return -1;
+}
 function fmtNum(n, dec=2) {
   return n == null ? '—' : Number(n).toLocaleString('en-US', {minimumFractionDigits: dec, maximumFractionDigits: dec});
 }
@@ -489,7 +534,7 @@ function renderSummary() {
         <div class="card price-card p-3 h-100">
           <div class="ticker">${row.ticker}</div>
           <div class="name">${row.name}</div>
-          <div class="close mt-1">${fmtNum(row.close)}</div>
+          <div class="close mt-1">$${fmtNum(row.close)}</div>
           <div class="change ${cls}">${arrow} ${sign}${fmtNum(row.change)} (${sign}${fmtNum(row.change_pct)}%)</div>
           <div class="ticker mt-1">${row.date}</div>
         </div>
@@ -615,6 +660,7 @@ function renderChart() {
 
   const tbody = document.getElementById('table-body');
   tbody.innerHTML = '';
+  let rowIdx = 0;
   Object.entries(data).forEach(([sym, info]) => {
     const last = info.dates.length - 1;
     if (last < 0) return;
@@ -622,16 +668,27 @@ function renderChart() {
     const prev  = last > 0 ? info.closes[last-1] : close;
     const change = +(close - prev).toFixed(2);
     const changePct = prev ? +((change/prev)*100).toFixed(2) : 0;
-    const sign = change >= 0 ? '+' : '';
     const cls  = change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral';
+    const icon = trendIcon(cls);
+
+    const momIdx = monthAgoIndex(info.dates, last);
+    const momClose = momIdx >= 0 ? info.closes[momIdx] : null;
+    const momPct = momClose ? +(((close - momClose) / momClose) * 100).toFixed(2) : null;
+    const momCls = momPct == null ? 'neutral' : momPct > 0 ? 'positive' : momPct < 0 ? 'negative' : 'neutral';
+    const momIcon = trendIcon(momCls);
+    const momCell = momPct == null
+      ? '<span class="text-muted">—</span>'
+      : `<span class="change-pill ${momCls}">${momIcon}${fmtNum(Math.abs(momPct))}%</span>`;
+
     tbody.innerHTML += `
-      <tr>
-        <td><code class="text-info">${sym}</code></td>
+      <tr class="row-in" style="animation-delay:${rowIdx++ * 25}ms">
+        <td><code class="ticker-cell">${sym}</code></td>
         <td>${info.name}</td>
         <td class="text-muted">${info.dates[last]}</td>
-        <td class="text-end">${fmtNum(close)}</td>
-        <td class="text-end ${cls}">${sign}${fmtNum(change)}</td>
-        <td class="text-end ${cls}">${sign}${fmtNum(changePct)}%</td>
+        <td class="text-end">$${fmtNum(close)}</td>
+        <td class="text-end"><span class="change-pill ${cls}">${icon}${fmtNum(Math.abs(change))}</span></td>
+        <td class="text-end"><span class="change-pill ${cls}">${icon}${fmtNum(Math.abs(changePct))}%</span></td>
+        <td class="text-end">${momCell}</td>
       </tr>`;
   });
   document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
